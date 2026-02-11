@@ -7,6 +7,7 @@
 - [wtexels.bin - Данные текстур](#wtexelsbin---данные-текстур)
 - [palettes.bin - Данные палитр](#palettesbin---данные-палитр)
 - [Структура JAR](#структура-jar)
+- [Поддержка игр](#поддержка-игр)
 - [Примечания по реализации](#примечания-по-реализации)
 
 ## wtexels.bin - Данные текстур
@@ -165,19 +166,42 @@ MIDlet-1: [Название игры], [Путь к иконке], [Главны
 Примеры:
 ```
 MIDlet-1: Doom RPG, /icon.png, DoomRPG
+MIDlet-1: Doom RPG II, /icon.png, DoomRPGII
 MIDlet-1: Orcs & Elves, /icon.png, OrcsAndElves
 MIDlet-1: Orcs & Elves II, /icon.png, OrcsAndElvesII
+MIDlet-1: Wolfenstein RPG, /icon.png, WolfensteinRPG
 ```
 
 ### Файлы ресурсов
 
 **Doom RPG:**
-- `wtexels.bin` - Данные текстур
-- `palettes.bin` - Цветовые палитры
+- `wtexels.bin` — данные текстур
+- `palettes.bin` — цветовые палитры
+
+**Doom RPG II:**
+- *(в разработке)*
 
 **Orcs & Elves:**
-- `wtexels0.bin` - Данные текстур (обратите внимание на суффикс '0')
-- `palettes.bin` - Цветовые палитры
+- `wtexels0.bin` — первый набор текстур (суффикс `0`)
+- `wtexels1.bin` — второй набор текстур (суффикс `1`)
+- `palettes.bin` — цветовые палитры
+
+**Orcs & Elves II:**
+- `wtexels0.bin` — данные текстур
+- `palettes.bin` — цветовые палитры
+
+**Wolfenstein RPG:**
+- *(в разработке)*
+
+## Поддержка игр
+
+| Игра            | Распаковка | Запаковка  |
+|-----------------|------------|------------|
+| Doom RPG        | ✅          | ✅          |
+| Doom RPG II     | ❌          | ❌          |
+| Orcs & Elves    | ✅          | ❌          |
+| Orcs & Elves II | ✅          | ❌          |
+| Wolfenstein RPG | ❌          | ❌          |
 
 ## Примечания по реализации
 
@@ -292,6 +316,100 @@ ushort ColorToBGR565(Color c)
 }
 ```
 
+### Упаковка текстур (PackTextures)
+
+PNG-файлы с именами `texture_NNN.png` из папки текстур упаковываются обратно в `.bin`-файл. Файлы сортируются по имени и обрабатываются по порядку. Изображения, не соответствующие размеру 64×64, пропускаются.
+
+```csharp
+static void PackTextures(string inputDir, string outputFile)
+{
+    var pngFiles = Directory.GetFiles(inputDir, "texture_*.png")
+                            .OrderBy(f => f)
+                            .ToArray();
+
+    int totalDataSize = pngFiles.Length * 2048;
+
+    using (BinaryWriter writer = new BinaryWriter(File.Create(outputFile)))
+    {
+        writer.Write((uint)totalDataSize); // заголовок
+
+        foreach (var file in pngFiles)
+        {
+            using (Bitmap bmp = new Bitmap(file))
+            {
+                if (bmp.Width != 64 || bmp.Height != 64) continue;
+
+                for (int x = 0; x < 64; x++)
+                    for (int y = 0; y < 64; y += 2)
+                    {
+                        int i1 = ColorToPaletteIndex(bmp.GetPixel(x, y));
+                        int i2 = ColorToPaletteIndex(bmp.GetPixel(x, y + 1));
+                        writer.Write((byte)((i2 << 4) | i1));
+                    }
+            }
+        }
+    }
+}
+```
+
+### Упаковка палитр (PackPalettes)
+
+PNG-файлы с именами `palette_NNN.png` читаются как горизонтальные полоски 16 ячеек шириной 16 пикселей каждая. Цвет берётся из центра каждой ячейки.
+
+```csharp
+static void PackPalettes(string inputDir, string outputFile)
+{
+    var pngFiles = Directory.GetFiles(inputDir, "palette_*.png")
+                            .OrderBy(f => f)
+                            .ToArray();
+
+    int totalDataSize = pngFiles.Length * 32;
+
+    using (BinaryWriter writer = new BinaryWriter(File.Create(outputFile)))
+    {
+        writer.Write((uint)totalDataSize); // заголовок
+
+        foreach (var file in pngFiles)
+        {
+            Color[] palette = ExtractPaletteFromPNG(file, 16);
+
+            for (int c = 0; c < 16; c++)
+                writer.Write(ColorToBGR565(palette[c]));
+        }
+    }
+}
+
+// Цвет берётся из центра каждой ячейки (x = i*16+8, y = height/2)
+static Color[] ExtractPaletteFromPNG(string pngPath, int colorCount)
+{
+    Color[] palette = new Color[colorCount];
+    using (Bitmap bmp = new Bitmap(pngPath))
+        for (int i = 0; i < colorCount; i++)
+        {
+            int x = Math.Min(i * 16 + 8, bmp.Width - 1);
+            int y = Math.Min(bmp.Height / 2, bmp.Height - 1);
+            palette[i] = bmp.GetPixel(x, y);
+        }
+    return palette;
+}
+```
+
+### Запись изменений обратно в JAR (Doom RPG)
+
+После упаковки `wtexels.bin` и `palettes.bin` файлы записываются обратно в исходный JAR-архив. Существующие записи сначала удаляются, затем добавляются новые:
+
+```csharp
+using (ZipArchive archive = ZipFile.Open(jarPath, ZipArchiveMode.Update))
+{
+    foreach (string fileName in new[] { "wtexels.bin", "palettes.bin" })
+    {
+        var existing = archive.Entries.FirstOrDefault(e => e.FullName.EndsWith(fileName));
+        existing?.Delete();
+        archive.CreateEntryFromFile(Path.Combine(inputDir, fileName), fileName);
+    }
+}
+```
+
 ## Валидация
 
 ### Валидация текстур
@@ -299,12 +417,14 @@ ushort ColorToBGR565(Color c)
 - Размер файла должен быть `4 + (N × 2048)` байт
 - Каждая текстура должна быть точно 2048 байт
 - Значение заголовка должно совпадать с общим размером данных
+- При упаковке изображения, не соответствующие размеру 64×64, пропускаются
 
 ### Валидация палитр
 
 - Размер файла должен быть `4 + (N × 32)` байт
 - Каждая палитра должна быть точно 32 байта (16 цветов)
 - Значение заголовка должно совпадать с общим размером данных
+- PNG-палитры должны иметь ширину не менее 256 пикселей (16 × 16)
 
 ## Порядок байтов (Endianness)
 
@@ -321,139 +441,64 @@ uint16: [байт0][байт1]
 СЗБ = Старший значащий байт
 ```
 
+## Структура директорий (вывод)
+
+### Doom RPG
+
+```
+<папка JAR>\Doom RPG\Unpacked\
+├── wtexels.bin
+├── palettes.bin
+├── Textures\
+│   ├── texture_000.png
+│   ├── texture_001.png
+│   └── ...
+└── Palettes\
+    ├── palette_000.png
+    ├── palette_001.png
+    └── ...
+```
+
+### Orcs & Elves
+
+```
+<папка JAR>\Orcs & Elves\Unpacked\
+├── wtexels0.bin
+├── wtexels1.bin
+├── palettes.bin
+├── Textures0\
+│   └── texture_NNN.png
+├── Textures1\
+│   └── texture_NNN.png
+└── Palettes\
+    └── palette_NNN.png
+```
+
+### Orcs & Elves II
+
+```
+<папка JAR>\Orcs & Elves II\Unpacked\
+├── wtexels0.bin
+├── palettes.bin
+├── Textures\
+│   └── texture_NNN.png
+└── Palettes\
+    └── palette_NNN.png
+```
+
 ## История версий
 
-- **v0.1** - Первоначальная спецификация формата
-  - Поддержка Doom RPG
-  - Поддержка извлечения Orcs & Elves
+- **v0.1** — Первоначальная спецификация формата
+  - Поддержка Doom RPG (распаковка и запаковка)
+  - Поддержка извлечения Orcs & Elves (оба файла текстур: wtexels0.bin, wtexels1.bin)
+  - Поддержка извлечения Orcs & Elves II
+  - Обнаружение Doom RPG II и Wolfenstein RPG (поддержка в разработке)
 
 ## Справочная информация
 
 - Оригинальная реализация: id Mobile RPG Editor от den_koter
 - Целевые платформы: J2ME (Java 2 Micro Edition)
 - Цветовое пространство: BGR565 (16-битный цвет)
-
-## Дополнительные примеры
-
-### Пример распаковки текстуры
-
-```csharp
-// Чтение одной текстуры из wtexels.bin
-byte[] fileData = File.ReadAllBytes("wtexels.bin");
-int headerSize = 4;
-int textureIndex = 0; // Первая текстура
-
-// Создаём палитру градаций серого
-Color[] grayscalePalette = new Color[16];
-for (int i = 0; i < 16; i++)
-{
-    int val = i * 17;
-    grayscalePalette[i] = Color.FromArgb(val, val, val);
-}
-
-// Создаём изображение
-Bitmap bmp = new Bitmap(64, 64);
-
-// Вычисляем смещение для нужной текстуры
-int offset = headerSize + (textureIndex * 2048);
-
-// Распаковываем пиксели
-for (int x = 0; x < 64; x++)
-{
-    for (int y = 0; y < 64; y += 2)
-    {
-        byte packedByte = fileData[offset++];
-        
-        int p1Index = packedByte & 0x0F;
-        int p2Index = (packedByte >> 4) & 0x0F;
-        
-        bmp.SetPixel(x, y, grayscalePalette[p1Index]);
-        bmp.SetPixel(x, y + 1, grayscalePalette[p2Index]);
-    }
-}
-
-bmp.Save("texture_000.png", ImageFormat.Png);
-```
-
-### Пример упаковки текстуры
-
-```csharp
-// Упаковка изображения обратно в формат wtexels.bin
-Bitmap bmp = new Bitmap("texture_000.png");
-
-using (FileStream fs = new FileStream("wtexels_new.bin", FileMode.Create))
-using (BinaryWriter writer = new BinaryWriter(fs))
-{
-    // Записываем заголовок (размер данных)
-    writer.Write((uint)2048);
-    
-    // Упаковываем пиксели
-    for (int x = 0; x < 64; x++)
-    {
-        for (int y = 0; y < 64; y += 2)
-        {
-            Color c1 = bmp.GetPixel(x, y);
-            Color c2 = bmp.GetPixel(x, y + 1);
-            
-            // Преобразуем в градации серого
-            int gray1 = (int)(c1.R * 0.299 + c1.G * 0.587 + c1.B * 0.114);
-            int gray2 = (int)(c2.R * 0.299 + c2.G * 0.587 + c2.B * 0.114);
-            
-            // Преобразуем в индексы палитры
-            int index1 = Math.Min(15, Math.Max(0, (gray1 + 8) / 17));
-            int index2 = Math.Min(15, Math.Max(0, (gray2 + 8) / 17));
-            
-            // Упаковываем два пикселя в один байт
-            byte packedByte = (byte)((index2 << 4) | index1);
-            writer.Write(packedByte);
-        }
-    }
-}
-```
-
-### Пример работы с палитрой
-
-```csharp
-// Чтение палитры
-byte[] paletteData = File.ReadAllBytes("palettes.bin");
-int headerSize = 4;
-int paletteIndex = 0;
-
-Color[] palette = new Color[16];
-int offset = headerSize + (paletteIndex * 32);
-
-for (int i = 0; i < 16; i++)
-{
-    ushort bgr565 = BitConverter.ToUInt16(paletteData, offset);
-    offset += 2;
-    
-    // Распаковываем компоненты цвета
-    int r5 = bgr565 & 0x1F;
-    int g6 = (bgr565 >> 5) & 0x3F;
-    int b5 = (bgr565 >> 11) & 0x1F;
-    
-    // Расширяем до 8-бит
-    int r8 = (r5 << 3) | (r5 >> 2);
-    int g8 = (g6 << 2) | (g6 >> 4);
-    int b8 = (b5 << 3) | (b5 >> 2);
-    
-    palette[i] = Color.FromArgb(r8, g8, b8);
-}
-
-// Создаём визуализацию палитры (полоска 256x16 пикселей)
-Bitmap paletteBmp = new Bitmap(256, 16);
-using (Graphics g = Graphics.FromImage(paletteBmp))
-{
-    for (int i = 0; i < 16; i++)
-    {
-        using (SolidBrush brush = new SolidBrush(palette[i]))
-        {
-            g.FillRectangle(brush, i * 16, 0, 16, 16);
-        }
-    }
-}
-paletteBmp.Save("palette_000.png", ImageFormat.Png);
-```
 
 ## Часто задаваемые вопросы
 
@@ -472,3 +517,7 @@ paletteBmp.Save("palette_000.png", ImageFormat.Png);
 ### Как работает упаковка двух пикселей в один байт?
 
 Младшие 4 бита (0-3) хранят индекс первого пикселя, старшие 4 бита (4-7) хранят индекс второго пикселя. Это позволяет сжать данные в 2 раза.
+
+### Почему для Orcs & Elves два файла текстур?
+
+В игре используется два независимых банка текстур: `wtexels0.bin` и `wtexels1.bin`. Они извлекаются в отдельные папки `Textures0` и `Textures1`.

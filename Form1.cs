@@ -1,4 +1,4 @@
-// id Mobile RPG Editor 0.1 by den_koter
+// id Mobile RPG Editor 0.2 by den_koter
 
 using System.Drawing.Imaging;
 using System.IO.Compression;
@@ -43,6 +43,10 @@ namespace id_Mobile_RPG_Editor
                                         {
                                             textBox2.Text = "Doom RPG";
                                         }
+                                        if (value.Contains("Doom RPG II"))
+                                        {
+                                            textBox2.Text = "Doom RPG II";
+                                        }
 
                                         if (value.Contains("Orcs & Elves"))
                                         {
@@ -54,6 +58,11 @@ namespace id_Mobile_RPG_Editor
                                             textBox2.Text = "Orcs & Elves II";
                                         }
 
+                                        if (value.Contains("Wolfenstein RPG"))
+                                        {
+                                            textBox2.Text = "Wolfenstein RPG";
+                                        }
+
                                         break;
                                     }
                                 }
@@ -61,7 +70,7 @@ namespace id_Mobile_RPG_Editor
                         }
                         else
                         {
-                            textBox2.Text = "Выбрана не поддерживаемый JAR файл";
+                            textBox2.Text = "Выбран не поддерживаемый JAR файл";
                         }
                     }
                 }
@@ -141,9 +150,11 @@ namespace id_Mobile_RPG_Editor
             if (textBox2.Text == "Orcs & Elves")
             {
                 string output_dir = Path.GetDirectoryName(textBox1.Text) + @"\Orcs & Elves\Unpacked\";
-                string output_dir_textures = Path.GetDirectoryName(textBox1.Text) + @"\Orcs & Elves\Unpacked\Textures\";
+                string output_dir_textures0 = Path.GetDirectoryName(textBox1.Text) + @"\Orcs & Elves\Unpacked\Textures0\";
+                string output_dir_textures1 = Path.GetDirectoryName(textBox1.Text) + @"\Orcs & Elves\Unpacked\Textures1\";
                 string output_dir_palettes = Path.GetDirectoryName(textBox1.Text) + @"\Orcs & Elves\Unpacked\Palettes\";
-                string wtexeles = Path.Combine(output_dir, "wtexels0.bin");
+                string wtexeles0 = Path.Combine(output_dir, "wtexels0.bin");
+                string wtexeles1 = Path.Combine(output_dir, "wtexels1.bin");
                 string palettes = Path.Combine(output_dir, "palettes.bin");
 
                 using (ZipArchive archive = ZipFile.OpenRead(textBox1.Text))
@@ -161,8 +172,97 @@ namespace id_Mobile_RPG_Editor
                         entry.ExtractToFile(destinationPath, true);
                     }
 
+                    if (!Directory.Exists(output_dir_textures0))
+                    {
+                        Directory.CreateDirectory(output_dir_textures0);
+                    }
+                    try
+                    {
+                        ExtractTextures(wtexeles0, output_dir_textures0);
+                    }
+                    catch (Exception ex)
+                    {
+                    }
+
+                    entry = archive.Entries.FirstOrDefault(e => e.FullName.EndsWith("wtexels1.bin"));
+
+                    if (!Directory.Exists(output_dir))
+                    {
+                        Directory.CreateDirectory(output_dir);
+                    }
+
+                    if (entry != null)
+                    {
+                        string destinationPath = Path.Combine(output_dir, entry.Name);
+                        entry.ExtractToFile(destinationPath, true);
+                    }
+
+                    if (!Directory.Exists(output_dir_textures1))
+                    {
+                        Directory.CreateDirectory(output_dir_textures1);
+                    }
+                    try
+                    {
+                        ExtractTextures(wtexeles1, output_dir_textures1);
+                    }
+                    catch (Exception ex)
+                    {
+                    }
 
 
+
+
+                    entry = archive.Entries.FirstOrDefault(e => e.FullName.EndsWith("palettes.bin"));
+
+                    if (!Directory.Exists(output_dir))
+                    {
+                        Directory.CreateDirectory(output_dir);
+                    }
+
+                    if (entry != null)
+                    {
+                        string destinationPath = Path.Combine(output_dir, entry.Name);
+                        entry.ExtractToFile(destinationPath, true);
+                    }
+
+                    if (!Directory.Exists(output_dir_palettes))
+                    {
+                        Directory.CreateDirectory(output_dir_palettes);
+                    }
+
+                    try
+                    {
+                        ExtractPalettes(palettes, output_dir_palettes);
+                    }
+                    catch (Exception ex)
+                    {
+                    }
+                    MessageBox.Show("Ресурсы успешно извлечены!", "id Mobile RPG Editor Распаковщик", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+
+            if (textBox2.Text == "Orcs & Elves II")
+            {
+                string output_dir = Path.GetDirectoryName(textBox1.Text) + @"\Orcs & Elves II\Unpacked\";
+                string output_dir_textures = Path.GetDirectoryName(textBox1.Text) + @"\Orcs & Elves II\Unpacked\Textures\";
+                string output_dir_palettes = Path.GetDirectoryName(textBox1.Text) + @"\Orcs & Elves II\Unpacked\Palettes\";
+                string wtexeles = Path.Combine(output_dir, "wtexels0.bin");
+                string palettes = Path.Combine(output_dir, "palettes.bin");
+
+                using (ZipArchive archive = ZipFile.OpenRead(textBox1.Text))
+                {
+                    var entry = archive.Entries.FirstOrDefault(e => e.FullName.EndsWith("wtexels0.bin"));
+
+                    if (!Directory.Exists(output_dir))
+                    {
+                        Directory.CreateDirectory(output_dir);
+                    }
+
+                    if (entry != null)
+                    {
+                        string destinationPath = Path.Combine(output_dir, entry.Name);
+                        entry.ExtractToFile(destinationPath, true);
+                    }
                     if (!Directory.Exists(output_dir_textures))
                     {
                         Directory.CreateDirectory(output_dir_textures);
@@ -200,8 +300,17 @@ namespace id_Mobile_RPG_Editor
                     catch (Exception ex)
                     {
                     }
-                    MessageBox.Show("Ресурсы успешно извлечены!", "id Mobile RPG Editor Распаковщик", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show("Ресурсы успешно распакованы!", "id Mobile RPG Editor Распаковщик", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
+            }
+
+            if (textBox2.Text == "Wolfenstein RPG")
+            {
+                //Coming soon...
+            }
+            if (textBox2.Text == "Doom RPG")
+            {
+                //Coming soon...
             }
 
             static void ExtractTextures(string filePath, string outputDir)
@@ -385,6 +494,10 @@ namespace id_Mobile_RPG_Editor
 
             }
             if (textBox2.Text == "Orcs & Elves")
+            {
+                //Coming soon...
+            }
+            if (textBox2.Text == "Orcs & Elves II")
             {
                 //Coming soon...
             }
