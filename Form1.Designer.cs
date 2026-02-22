@@ -138,7 +138,7 @@
             Controls.Add(label1);
             Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "Form1";
-            Text = "id Mobile RPG Editor 0.1";
+            Text = "id Mobile RPG Editor 0.2";
             ResumeLayout(false);
             PerformLayout();
         }
